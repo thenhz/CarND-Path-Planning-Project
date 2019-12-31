@@ -8,12 +8,14 @@
 #include "helpers.h"
 #include "json.hpp"
 #include "spline.h"
+#include "brain.h"
 
 // for convenience
 using nlohmann::json;
 using std::string;
 using std::vector;
 
+//Global shared variables. Can't find (for now) a better way to make WS access these
 int lane = 1;
 double ref_vel = 0.0;
 
@@ -98,41 +100,10 @@ int main()
 
           int prev_size = previous_path_x.size();
 
-          if (prev_size > 0)
-          {
-            car_s = end_path_s;
-          }
-          bool too_close = false;
-
-          //Sensor fusion part
-          for (int i = 0; i < sensor_fusion.size(); i++)
-          {
-            float d = sensor_fusion[i][6];
-            if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2))
-            {
-              double vx = sensor_fusion[i][3];
-              double vy = sensor_fusion[i][4];
-              double check_speed = sqrt(vx * vx - vy * vy);
-              double check_car_s = sensor_fusion[i][5];
-
-              check_car_s += ((double)prev_size * .02 * check_speed);
-              if ((check_car_s > car_s) && ((check_car_s - car_s) < 30))
-              {
-                too_close = true;
-                //TODO: change lane or try that
-              }
-            }
-          }
-
-          if (too_close)
-          {
-            //TODO:Slow down depending on the car in front
-            ref_vel -= .224;
-          }
-          else if (ref_vel < 49.5)
-          {
-            ref_vel += .224;
-          }
+          auto params = figureOutNextState(j,lane,ref_vel);
+          lane = params.lane;
+          ref_vel = params.vel;
+          car_s = params.car_s;
 
           //spaced waypoints to calculate spline
           vector<double> ptsx;
