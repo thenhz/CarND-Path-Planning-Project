@@ -2,88 +2,86 @@
 #define BRAIN_H
 
 #include <vector>
-#include "helpers.h"
+#include <map>
+#include <string>
+#include <vector>
 #include "json.hpp"
 
 // for convenience
 using nlohmann::json;
-
+using std::map;
+using std::string;
 using std::vector;
 
-struct driving_params {
-  int lane;
-  double vel;
-  double car_s;
+class Brain
+{
+public:
+    // Constructors
+    Brain();
+    Brain(nlohmann::json telemetry, int lane, string state = "CS");
+
+    // Destructor
+    virtual ~Brain();
+
+    struct driving_params
+    {
+        int lane;
+        double vel;
+        double car_s;
+        double acc;
+        double yaw;
+        string new_state;
+    };
+
+    struct trajectory
+    {
+        vector<double> next_x_vals;
+        vector<double> next_y_vals;
+    };
+
+    map<int, string> plcx_labels = {{-1,"PLCL"}, {1, "PLCR"}};
+    map<int, string> lcx_labels = {{-1,"LCL"}, {1, "LCR"}};
+
+    double car_x, car_y, car_s, car_d, car_yaw, car_speed, end_path_s, end_path_d;
+    string state;
+    int lane, prev_size, preferred_buffer = 6, lanes_available = 3;
+    nlohmann::json previous_path_x, previous_path_y, sensor_fusion;
+
+    // Load up map values for waypoint's x,y,s and d normalized normal vectors
+    vector<double> map_waypoints_x;
+    vector<double> map_waypoints_y;
+    vector<double> map_waypoints_s;
+    vector<double> map_waypoints_dx;
+    vector<double> map_waypoints_dy;
+
+    void SetLane(int lane);
+
+    void SetTelemetry(nlohmann::json telemetry);
+
+    void setMaps(vector<double> map_waypoints_x, vector<double> map_waypoints_y, vector<double> map_waypoints_s, vector<double> map_waypoints_dx, vector<double> map_waypoints_dy);
+
+    driving_params choose_next_state();
+
+    driving_params generate_trajectory(string state);
+
+    trajectory generate_spline(double initial_x, double initial_y, double initial_yaw, int new_lane, double new_s, double vel);
+
+    driving_params constant_speed_trajectory();
+    driving_params keep_lane_trajectory();
+    driving_params lane_change_trajectory(int lane_direction);
+    driving_params prep_lane_change_trajectory(int lane_direction);
+
+    bool get_vehicle_ahead(Brain::driving_params *rVehicle, int lane, int allowed_distance);
+
+    bool get_vehicle_behind(Brain::driving_params *rVehicle, int lane, int allowed_distance);
+
+    vector<float> get_kinematics(int _lane, int allowed_distance);
+
+    driving_params generateDrivingParams(int _lane, double allowed_distance, string _state);
+
+    vector<string> successor_states();
+
+    void realize_next_state(Brain::driving_params trajectory);
 };
 
-driving_params figureOutNextState(nlohmann::json j, int lane, double actual_vel)
-{
-    double ref_vel = 0.0;
-    // Main car's localization Data
-    double car_x = j[1]["x"];
-    double car_y = j[1]["y"];
-    double car_s = j[1]["s"];
-    double car_d = j[1]["d"];
-    double car_yaw = j[1]["yaw"];
-    double car_speed = j[1]["speed"];
-
-    // Previous path data given to the Planner
-    auto previous_path_x = j[1]["previous_path_x"];
-    auto previous_path_y = j[1]["previous_path_y"];
-    // Previous path's end s and d values
-    double end_path_s = j[1]["end_path_s"];
-    double end_path_d = j[1]["end_path_d"];
-    // Sensor Fusion Data, a list of all other cars on the same side
-    //   of the road.
-    auto sensor_fusion = j[1]["sensor_fusion"];
-
-    int prev_size = previous_path_x.size();
-    if (prev_size > 0)
-    {
-        car_s = end_path_s;
-    }
-    bool too_close = false;
-
-    //Sensor fusion part
-    for (int i = 0; i < sensor_fusion.size(); i++)
-    {
-        float d = sensor_fusion[i][6];
-        if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2))
-        {
-            double vx = sensor_fusion[i][3];
-            double vy = sensor_fusion[i][4];
-            double check_speed = sqrt(vx * vx - vy * vy);
-            double check_car_s = sensor_fusion[i][5];
-
-            check_car_s += ((double)prev_size * .02 * check_speed);
-            if ((check_car_s > car_s) && ((check_car_s - car_s) < 30))
-            {
-                too_close = true;
-                //TODO: change lane or try that
-            }
-        }
-    }
-
-    if (too_close)
-    {
-        //TODO:Slow down depending on the car in front
-        ref_vel = actual_vel - .224;
-
-    }
-    else if (actual_vel < 49.5)
-    {
-        ref_vel = actual_vel + .224;
-    }else{
-        ref_vel = actual_vel;
-    }
-
-    driving_params params;
-
-    params.lane = lane;
-    params.vel = ref_vel;
-    params.car_s = car_s;
-
-    return params;
-}
-
-#endif // BRAIN_H
+#endif
