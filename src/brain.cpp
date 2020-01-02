@@ -29,9 +29,9 @@ void Brain::SetTelemetry(nlohmann::json j)
     this->car_x = j[1]["x"];
     this->car_y = j[1]["y"];
     this->car_s = j[1]["s"];
-    this->car_d = j[1]["d"];
+    //this->car_d = j[1]["d"];
     this->car_yaw = j[1]["yaw"];
-    this->car_speed = j[1]["speed"];
+    //this->car_speed = j[1]["speed"];
 
     // Previous path data given to the Planner
     this->previous_path_x = j[1]["previous_path_x"];
@@ -59,7 +59,6 @@ void Brain::setMaps(vector<double> map_waypoints_x, vector<double> map_waypoints
     this->map_waypoints_dy = map_waypoints_dy;
 };
 
-
 Brain::driving_params Brain::choose_next_state()
 {
     vector<string> states = successor_states();
@@ -70,17 +69,22 @@ Brain::driving_params Brain::choose_next_state()
     for (vector<string>::iterator it = states.begin(); it != states.end(); ++it)
     {
         driving_params trajectory = generate_trajectory(*it);
-        if (trajectory.vel!=NULL)
+        if (trajectory.vel != NULL)
         {
             cost = calculate_cost(*this, trajectory);
             costs.push_back(cost);
             final_trajectories.push_back(trajectory);
+            std::cout << trajectory.new_state << " cost:" << cost << " ";
         }
     }
-
+    std::cout << std::endl;
+    //std::cout << "number of proposed trajectories:" << final_trajectories.size();
     vector<float>::iterator best_cost = min_element(begin(costs), end(costs));
     int best_idx = distance(begin(costs), best_cost);
-    return final_trajectories[best_idx];
+    auto _trajectory = final_trajectories[best_idx];
+    //std::cout << "State:" << state << "; vel:"<< _trajectory.vel << "; car_s:"<< _trajectory.car_s << "; lane:"<< _trajectory.lane<< std::endl;
+    std::cout << " - Selected state: " <<_trajectory.new_state << std::endl;
+    return _trajectory;
 }
 
 Brain::driving_params Brain::generate_trajectory(string state)
@@ -113,8 +117,6 @@ Brain::driving_params Brain::generate_trajectory(string state)
         trajectory = prep_lane_change_trajectory(1);
     }
 
-    std::cout << "State:" << state << "; vel:"<< trajectory.vel << "; car_s:"<< trajectory.car_s << "; lane:"<< trajectory.lane<< std::endl;
-
     return trajectory;
 };
 
@@ -126,6 +128,7 @@ vector<string> Brain::successor_states()
     vector<string> states;
     states.push_back("KL");
     string state = this->state;
+    //std::cout << "CURRENT_STATE: " << state << std::endl;
     if (state.compare("KL") == 0)
     {
         states.push_back("PLCL");
@@ -137,6 +140,7 @@ vector<string> Brain::successor_states()
         {
             states.push_back("PLCL");
             states.push_back("LCL");
+            //std::cout << " Evaluating LCL" << std::endl;
         }
     }
     else if (state.compare("PLCR") == 0)
@@ -145,6 +149,7 @@ vector<string> Brain::successor_states()
         {
             states.push_back("PLCR");
             states.push_back("LCR");
+            //std::cout << " Evaluating LCR" << std::endl;
         }
     }
 
@@ -167,7 +172,8 @@ Brain::driving_params Brain::constant_speed_trajectory()
 
 Brain::driving_params Brain::keep_lane_trajectory()
 {
-    return  this->generateDrivingParams(this->lane, 30.0,"KL"); 
+    //std::cout << "keep_lane_trajectory" << std::endl;
+    return this->generateDrivingParams(this->lane, 30.0, "KL");
 };
 
 Brain::driving_params Brain::generateDrivingParams(int _lane, double allowed_distance, string _state)
@@ -184,6 +190,12 @@ Brain::driving_params Brain::generateDrivingParams(int _lane, double allowed_dis
     params.vel = new_v;
     params.new_state = _state;
 
+    if(_state.compare("KL") || _state.compare("CS")){
+        params.proposing_change_lane = false;
+    }else{
+        params.proposing_change_lane = true;
+    }
+
     return params;
 }
 
@@ -193,7 +205,7 @@ Brain::driving_params Brain::lane_change_trajectory(int lane_direction)
     int new_lane = this->lane + lane_direction;
     driving_params trajectory;
 
-    if (new_lane < 0 || new_lane > 2)
+    if (new_lane < 0 || new_lane > lanes_available - 1)
     {
         return trajectory;
     }
@@ -201,34 +213,44 @@ Brain::driving_params Brain::lane_change_trajectory(int lane_direction)
     Brain::driving_params vehicle_ahead;
     Brain::driving_params vehicle_behind;
 
-    if (get_vehicle_ahead(&vehicle_ahead, new_lane, 5.0))
+    //TODO: fix this
+    /*
+    if (get_vehicle_ahead(&vehicle_ahead, new_lane, 25.0))
     {
         //NULL if lane is busy
         return trajectory;
-    }
-
-    return this->generateDrivingParams(new_lane, 5.0,lcx_labels[lane_direction]);
+    }*/
+    //std::cout << "creating lane_change_trajectory params!!!!!" << std::endl;
+    return this->generateDrivingParams(new_lane, 25.0, lcx_labels[lane_direction]);
 };
 
 Brain::driving_params Brain::prep_lane_change_trajectory(int lane_direction)
 {
+
     // Generate a trajectory preparing for a lane change.
     int new_lane = this->lane + lane_direction;
     driving_params trajectory;
     Brain::driving_params vehicle_behind, current_lane_kinematics;
 
-    current_lane_kinematics = this->generateDrivingParams(this->lane, 30.0,plcx_labels[lane_direction]);
+    current_lane_kinematics = this->generateDrivingParams(this->lane, 30.0, plcx_labels[lane_direction]);
 
-    if (new_lane < 0 || new_lane > 2)
+    if (new_lane < 0 || new_lane > lanes_available - 1)
     {
         return current_lane_kinematics;
     }
-
-    if (!get_vehicle_behind(&vehicle_behind, this->lane, 5.0))
+    else
     {
-        Brain::driving_params new_lane_kinematics = this->generateDrivingParams(new_lane, 5.0,plcx_labels[lane_direction]);
+        //std::cout << "PREPARE SUGGESTING LANE CHANGE" << std::endl;
+        return this->generateDrivingParams(this->lane, 25.0, plcx_labels[lane_direction]);
+    }
+    /*
+    //TODO: check if vehicle_nehind is faster
+    if (!get_vehicle_behind(&vehicle_behind, this->lane, 25.0))
+    {
+        Brain::driving_params new_lane_kinematics = this->generateDrivingParams(new_lane, 25.0,plcx_labels[lane_direction]);
         if (current_lane_kinematics.vel < new_lane_kinematics.vel)
         {
+            std::cout << "SUGGESTING LANE CHANGE" << std::endl;
             return new_lane_kinematics;
         }
         else
@@ -239,7 +261,7 @@ Brain::driving_params Brain::prep_lane_change_trajectory(int lane_direction)
     else
     {
         return current_lane_kinematics;
-    }
+    }*/
 };
 
 vector<float> Brain::get_kinematics(int _lane, int allowed_distance)
@@ -255,16 +277,14 @@ vector<float> Brain::get_kinematics(int _lane, int allowed_distance)
 
     if (get_vehicle_ahead(&vehicle_ahead, _lane, allowed_distance))
     {
-        //TODO:Slow down depending on the car in front
-        new_velocity = this->car_speed - 2.24;
-    }
-    else if (this->car_speed < 49.5)
-    {
-        new_velocity = this->car_speed + 2.24;
+
+            new_velocity = this->car_speed - 2.24;
+            //new_velocity = (this->car_speed + 2.24 > vehicle_ahead.vel) ? vehicle_ahead.vel : this->car_speed + 2.24;
+        
     }
     else
     {
-        new_velocity = this->car_speed;
+        new_velocity = (this->car_speed + 2.24 > 49.5) ? 49.5 : this->car_speed + 2.24;
     }
 
     new_accel = (new_velocity - this->car_speed) / 0.2; // Equation: (v_1 - v_0)/t = acceleration
@@ -287,18 +307,17 @@ bool Brain::get_vehicle_ahead(Brain::driving_params *rVehicle, int _lane, int al
         {
             double vx = sensor_fusion[i][3];
             double vy = sensor_fusion[i][4];
-            double check_speed = sqrt(vx * vx - vy * vy);
+            double check_speed = sqrt(vx * vx + vy * vy);
             double check_car_s = sensor_fusion[i][5];
 
             check_car_s += ((double)prev_size * .02 * check_speed);
-            if ((check_car_s > car_s) && ((check_car_s - car_s) < 30))
+            if ((check_car_s > car_s) && ((check_car_s - car_s) < allowed_distance))
             {
                 found_vehicle = true;
                 rVehicle->car_s = check_car_s;
                 rVehicle->lane = _lane;
                 rVehicle->vel = check_speed;
-                std::cout << "VEHICLE AHEAD!! s:" << check_car_s << "; lane:"<< _lane << "; vel:"<< check_speed << std::endl;
-
+                //std::cout << "VEHICLE AHEAD m." << allowed_distance << " !! s:" << check_car_s << "; lane:" << _lane << "; vel:" << vx << std::endl;
             }
         }
     }
@@ -319,16 +338,17 @@ bool Brain::get_vehicle_behind(Brain::driving_params *rVehicle, int _lane, int a
         {
             double vx = sensor_fusion[i][3];
             double vy = sensor_fusion[i][4];
-            double check_speed = sqrt(vx * vx - vy * vy);
+            double check_speed = sqrt(vx * vx + vy * vy);
             double check_car_s = sensor_fusion[i][5];
 
             check_car_s += ((double)prev_size * .02 * check_speed);
-            if ((check_car_s < car_s) && ((car_s - check_car_s) < 30))
+            if ((check_car_s < car_s) && ((car_s - check_car_s) < allowed_distance))
             {
                 found_vehicle = true;
                 rVehicle->car_s = check_car_s;
                 rVehicle->lane = _lane;
                 rVehicle->vel = check_speed;
+                //std::cout << "VEHICLE BEHIND m." << allowed_distance << " !! s:" << check_car_s << "; lane:" << _lane << "; vel:" << check_speed << std::endl;
             }
         }
     }
@@ -390,6 +410,9 @@ Brain::trajectory Brain::generate_spline(double initial_x, double initial_y, dou
         ptsx[i] = (shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw));
         ptsy[i] = (shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw));
     }
+    /*for(auto i: ptsx){
+        std::cout << i << " " << std::endl;
+    }*/
 
     //create spline
     tk::spline s;
@@ -436,12 +459,12 @@ Brain::trajectory Brain::generate_spline(double initial_x, double initial_y, dou
     return trj;
 };
 
-
-void Brain::realize_next_state(Brain::driving_params trajectory) {
-  // Sets state and kinematics for ego vehicle using the last state of the trajectory.
-  this->car_s = trajectory.car_s;
-  this->lane = trajectory.lane;
-  this->car_speed = trajectory.vel;
-  this->state = trajectory.new_state;
+void Brain::realize_next_state(Brain::driving_params trajectory)
+{
+    // Sets state and kinematics for ego vehicle using the last state of the trajectory.
+    this->car_s = trajectory.car_s;
+    this->lane = trajectory.lane;
+    this->car_speed = trajectory.vel;
+    this->state = trajectory.new_state;
     //TODO: set yaw accel et al?
 };

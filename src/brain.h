@@ -31,6 +31,7 @@ public:
         double acc;
         double yaw;
         string new_state;
+        bool proposing_change_lane;
     };
 
     struct trajectory
