@@ -11,6 +11,7 @@ set(sources src/main.cpp)
 set(sources ${sources} src/brain.cpp)
 set(sources ${sources} src/helpers.cpp)
 set(sources ${sources} src/cost.cpp)
+set(sources ${sources} src/DrivingParams.cpp)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin") 
 
