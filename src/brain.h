@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "json.hpp"
+#include "DrivingParams.h"
 
 // for convenience
 using nlohmann::json;
@@ -22,17 +23,6 @@ public:
 
     // Destructor
     virtual ~Brain();
-
-    struct driving_params
-    {
-        int lane;
-        double vel;
-        double car_s;
-        double acc;
-        double yaw;
-        string new_state;
-        bool proposing_change_lane;
-    };
 
     struct trajectory
     {
@@ -61,28 +51,28 @@ public:
 
     void setMaps(vector<double> map_waypoints_x, vector<double> map_waypoints_y, vector<double> map_waypoints_s, vector<double> map_waypoints_dx, vector<double> map_waypoints_dy);
 
-    driving_params choose_next_state();
+    DrivingParams choose_next_state();
 
-    driving_params generate_trajectory(string state);
+    DrivingParams generate_trajectory(string state);
 
     trajectory generate_spline(double initial_x, double initial_y, double initial_yaw, int new_lane, double new_s, double vel);
 
-    driving_params constant_speed_trajectory();
-    driving_params keep_lane_trajectory();
-    driving_params lane_change_trajectory(int lane_direction);
-    driving_params prep_lane_change_trajectory(int lane_direction);
+    DrivingParams constant_speed_trajectory();
+    DrivingParams keep_lane_trajectory();
+    DrivingParams lane_change_trajectory(int lane_direction);
+    DrivingParams prep_lane_change_trajectory(int lane_direction);
 
-    bool get_vehicle_ahead(Brain::driving_params *rVehicle, int lane, int allowed_distance);
+    bool get_vehicle_ahead(DrivingParams *rVehicle, int lane, int allowed_distance);
 
-    bool get_vehicle_behind(Brain::driving_params *rVehicle, int lane, int allowed_distance);
+    bool get_vehicle_behind(DrivingParams *rVehicle, int lane, int allowed_distance);
 
     vector<float> get_kinematics(int _lane, int allowed_distance);
 
-    driving_params generateDrivingParams(int _lane, double allowed_distance, string _state);
+    DrivingParams generateDrivingParams(int _lane, double allowed_distance, string _state);
 
     vector<string> successor_states();
 
-    void realize_next_state(Brain::driving_params trajectory);
+    void realize_next_state(DrivingParams trajectory);
 };
 
 #endif
