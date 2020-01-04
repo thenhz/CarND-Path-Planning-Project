@@ -24,6 +24,7 @@ void Brain::SetLane(int lane)
     this->lane = lane;
 };
 
+/*update the state and all other controls with fresh data coming from the simulation*/
 void Brain::SetTelemetry(nlohmann::json j)
 {
     // Main car's localization Data
@@ -63,6 +64,7 @@ void Brain::setMaps(vector<double> map_waypoints_x, vector<double> map_waypoints
     this->map_waypoints_dy = map_waypoints_dy;
 };
 
+/*choose next state depending on trajectories' cost*/
 DrivingParams Brain::choose_next_state()
 {
     vector<string> states = successor_states();
@@ -91,10 +93,10 @@ DrivingParams Brain::choose_next_state()
     return _trajectory;
 }
 
+/*Given a possible next state, generate the appropriate trajectory to realize the next state*/
 DrivingParams Brain::generate_trajectory(string state)
-{
-    // Given a possible next state, generate the appropriate trajectory to realize
-    //   the next state.
+{   
+    //TODO: make functions return move trajectories 
     DrivingParams trajectory = DrivingParams();
     if (state.compare("CS") == 0)
     {
@@ -124,11 +126,10 @@ DrivingParams Brain::generate_trajectory(string state)
     return trajectory;
 };
 
+/* Provides the possible next states given the current state for the FSM
+       discussed in the course */
 vector<string> Brain::successor_states()
 {
-    // Provides the possible next states given the current state for the FSM
-    //   discussed in the course, with the exception that lane changes happen
-    //   instantaneously, so LCL and LCR can only transition back to KL.
     vector<string> states;
     states.push_back("KL");
     string state = this->state;
@@ -161,6 +162,7 @@ vector<string> Brain::successor_states()
     return states;
 };
 
+/* defining some trjectories*/
 DrivingParams Brain::constant_speed_trajectory()
 {
     //std::cout << "constant_speed_trajectory" << std::endl;
@@ -178,9 +180,10 @@ DrivingParams Brain::constant_speed_trajectory()
 DrivingParams Brain::keep_lane_trajectory()
 {
     //std::cout << "keep_lane_trajectory" << std::endl;
-    return this->generateDrivingParams(this->lane, 15.0, "KL");
+    return this->generateDrivingParams(this->lane, 20.0, "KL");
 };
 
+/*helper method to generate params useful for the trajectory*/
 DrivingParams Brain::generateDrivingParams(int _lane, double allowed_distance, string _state)
 {
 
@@ -217,13 +220,13 @@ DrivingParams Brain::lane_change_trajectory(int lane_direction)
     DrivingParams vehicle_behind = DrivingParams();
 
 
-    if (get_vehicle_ahead(&vehicle_ahead, new_lane, 15.0)||get_vehicle_behind(&vehicle_behind,new_lane,1.0))
+    if (get_vehicle_ahead(&vehicle_ahead, new_lane, 20.0)||get_vehicle_behind(&vehicle_behind,new_lane,2.0))
     {
         //NULL if lane is busy
         return trajectory;
     }
     //std::cout << "creating lane_change_trajectory params!!!!!" << std::endl;
-    trajectory = this->generateDrivingParams(new_lane, 15.0, lcx_labels[lane_direction]);
+    trajectory = this->generateDrivingParams(new_lane, 20.0, lcx_labels[lane_direction]);
     trajectory.vel += 0.05;
     trajectory.proposed_lane = new_lane;
     return trajectory;
@@ -248,9 +251,9 @@ DrivingParams Brain::prep_lane_change_trajectory(int lane_direction)
     {
         //std::cout << "PREPARE SUGGESTING LANE CHANGE" << std::endl;
         DrivingParams vehicle_ahead = DrivingParams();
-        if (!get_vehicle_ahead(&vehicle_ahead, new_lane, 15.0))
+        if (!get_vehicle_ahead(&vehicle_ahead, new_lane, 20.0))
         {
-            proposed_trajectory = generateDrivingParams(new_lane, 15.0, plcx_labels[lane_direction]);
+            proposed_trajectory = generateDrivingParams(new_lane, 20.0, plcx_labels[lane_direction]);
             trajectory = generateDrivingParams(this->lane, 30.0, plcx_labels[lane_direction]);
             trajectory.proposed_lane = proposed_trajectory.lane;
             trajectory.proposed_vel = proposed_trajectory.vel ;
@@ -261,27 +264,11 @@ DrivingParams Brain::prep_lane_change_trajectory(int lane_direction)
         }
         return trajectory;
     }
-    /*
-    //TODO: check if vehicle_nehind is faster
-    if (!get_vehicle_behind(&vehicle_behind, this->lane, 25.0))
-    {
-        DrivingParams new_lane_kinematics = this->generateDrivingParams(new_lane, 25.0,plcx_labels[lane_direction]);
-        if (current_lane_kinematics.vel < new_lane_kinematics.vel)
-        {
-            std::cout << "SUGGESTING LANE CHANGE" << std::endl;
-            return new_lane_kinematics;
-        }
-        else
-        {
-            return current_lane_kinematics;
-        }
-    }
-    else
-    {
-        return current_lane_kinematics;
-    }*/
+    
+    //TODO: check if vehicle_nehind is faster??
 };
 
+/*get kinematics based on the lane and other vehicles close to us*/
 vector<float> Brain::get_kinematics(int _lane, int allowed_distance)
 {
     // Gets next timestep kinematics (position, velocity, acceleration)
@@ -295,12 +282,8 @@ vector<float> Brain::get_kinematics(int _lane, int allowed_distance)
 
     if (get_vehicle_ahead(&vehicle_ahead, _lane, allowed_distance))
     {
-        //new_velocity = this->car_speed - 0.224;
         acc_v_ahead = std::min(0.224,(this->car_speed - vehicle_ahead.vel));
         new_velocity = (this->car_speed - acc_v_ahead < vehicle_ahead.vel) ? vehicle_ahead.vel : this->car_speed - acc_v_ahead;
-        //new_velocity =  this->car_speed - 0.224;
-        //new_velocity = this->car_speed - 0.1;//std::min(0.224,(this->car_speed - (this->car_speed - vehicle_ahead.vel))/0.2);
-        //std::cout << "car_speed:" << (this->car_speed) << "ahead_speed:" << (vehicle_ahead.vel) << std::endl;
     }
     else
     {
